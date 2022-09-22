@@ -93,19 +93,19 @@ def printEngineFuel(raw_data, screen):
     # data
     engine_fuel_front = (raw_data[22] << 8 | raw_data[21]) * 0.00133  # Fuel Pulsewidth in ms
     engine_fuel_rear = (raw_data[24] << 8 | raw_data[23]) * 0.00133  # Fuel Pulsewidth in ms
-    formatted_output = f'Fuel Millis: F: {engine_fuel_front :{padding}>{width}.2f} ms | R: {engine_fuel_rear :{padding}>{width}.2f} ms'
+    formatted_output = f'FPW: F {engine_fuel_front :{padding}>{width}.2f} R {engine_fuel_rear :{padding}>{width}.2f}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
     # readout in fuel table value
     padding = ' '
-    width = 3
+    width = 5
     location = (0, 3)  # x, y
 
     # data
-    engine_fuel_front = (raw_data[18] << 8 | raw_data[17]) * 0.026666  # fuel table reading
-    engine_fuel_rear = (raw_data[20] << 8 | raw_data[19]) * 0.026666  # fuel table reading
-    formatted_output = f'Fuel Table: F: {engine_fuel_front :{padding}>{width}.0f} | R: {engine_fuel_rear :{padding}>{width}.0f}'
+    engine_fuel_front = (raw_data[18] << 8 | raw_data[17]) * 0.026666  # fuel table value
+    engine_fuel_rear = (raw_data[20] << 8 | raw_data[19]) * 0.026666  # fuel table value
+    formatted_output = f'FTB: F {engine_fuel_front :{padding}>{width}.0f} R {engine_fuel_rear :{padding}>{width}.0f}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -117,7 +117,7 @@ def printBatteryVoltage(raw_data, screen):
 
     # data
     engine_volts = (raw_data[29] << 8 | raw_data[28]) * 0.01  # battery voltage
-    formatted_output = f'Battery: {engine_volts :{padding}>{width}.2f} v'
+    formatted_output = f'Batt V: {engine_volts :{padding}>{width}.2f}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -130,7 +130,7 @@ def printEngineTimingAdvance(raw_data, screen):
     # data
     engine_timing_front = (raw_data[14] << 8 | raw_data[13]) * 0.0025  # degrees of spark advance
     engine_timing_rear = (raw_data[16] << 8 | raw_data[15]) * 0.0025  # degrees of spark advance
-    formatted_output = f'Advance: F: {engine_timing_front :{padding}>{width}.2f} * | R: {engine_timing_rear :{padding}>{width}.2f} *'
+    formatted_output = f'Adv: F {engine_timing_front :{padding}>{width}.2f} R {engine_timing_rear :{padding}>{width}.2f}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
