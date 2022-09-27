@@ -3,7 +3,6 @@
 import curses
 from pylibftdi import Device
 from time import sleep
-#from timeit import default_timer as timer
 from datetime import datetime
 
 
@@ -22,6 +21,9 @@ runtime_data_header = [
 
 RTD_BYTES = bytearray(runtime_data_header)
 
+# globals
+RECORD_INCREMENT = 0
+
 
 # test with:
 # curses.wrapper(sample)
@@ -39,7 +41,7 @@ def getRuntimeData(serial_device):
     serial_device.write(RTD_BYTES)
 
     # may want a more sophisticated way of doing this so we don't hang up the whole program
-    sleep(0.2)
+    sleep(0.15)
 
     runtime_data = serial_device.read(99)
 
@@ -47,11 +49,12 @@ def getRuntimeData(serial_device):
 
 
 def recordData(raw_data, file_obj):
+    global RECORD_INCREMENT
+
+    RECORD_INCREMENT = RECORD_INCREMENT + 160  # approximation of what the log record field should contain
+
     file_obj.write(raw_data)
-    file_obj.write(b'\x00')
-    file_obj.write(b'\x00')
-    file_obj.write(b'\x00')
-    file_obj.write(b'\x00')
+    file_obj.write(RECORD_INCREMENT.to_bytes(4, "big"))
     file_obj.flush()
 
 
@@ -60,7 +63,7 @@ def printError(screen):
     screen.addstr(0, 0, 'Comm error!')
 
 
-def printEngineTemp(raw_data, screen):
+def printEngineTempAndO2(raw_data, screen):
     # screen formatting
     padding = ' '
     width = 3
@@ -68,7 +71,8 @@ def printEngineTemp(raw_data, screen):
 
     # data
     engine_temp = (raw_data[31] << 8 | raw_data[30]) * 0.1 - 40  # engine temp in C
-    formatted_output = f'Temp: {engine_temp :{padding}>{width}.0f}'
+    engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
+    formatted_output = f'T: {engine_temp :{padding}>{width}.0f} C O2: {engine_o2 :.2f} V '
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -79,7 +83,7 @@ def printEngineO2(raw_data, screen):
 
     # data
     engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
-    formatted_output = f'O2: {engine_o2 :.2f}'
+    formatted_output = f'O2: {engine_o2 :.2f}    '
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -88,7 +92,7 @@ def printEngineFuel(raw_data, screen):
     # readout in ms
     padding = ' '
     width = 5
-    location = (0, 2)  # x, y
+    location = (0, 1)  # x, y
 
     # data
     engine_fuel_front = (raw_data[22] << 8 | raw_data[21]) * 0.00133  # Fuel Pulsewidth in ms
@@ -100,7 +104,7 @@ def printEngineFuel(raw_data, screen):
     # readout in fuel table value
     padding = ' '
     width = 5
-    location = (0, 3)  # x, y
+    location = (0, 2)  # x, y
 
     # data
     engine_fuel_front = (raw_data[18] << 8 | raw_data[17]) * 0.026666  # fuel table value
@@ -113,7 +117,7 @@ def printEngineFuel(raw_data, screen):
 def printBatteryVoltage(raw_data, screen):
     padding = ' '
     width = 5
-    location = (0, 4)  # x, y
+    location = (0, 3)  # x, y
 
     # data
     engine_volts = (raw_data[29] << 8 | raw_data[28]) * 0.01  # battery voltage
@@ -125,7 +129,7 @@ def printBatteryVoltage(raw_data, screen):
 def printEngineTimingAdvance(raw_data, screen):
     padding = ' '
     width = 5
-    location = (0, 5)  # x, y
+    location = (0, 4)  # x, y
 
     # data
     engine_timing_front = (raw_data[14] << 8 | raw_data[13]) * 0.0025  # degrees of spark advance
@@ -138,7 +142,7 @@ def printEngineTimingAdvance(raw_data, screen):
 def printEngineLoad(raw_data, screen):
     padding = ' '
     width = 3
-    location = (0, 6)  # x, y
+    location = (0, 5)  # x, y
 
     # data
     engine_load = raw_data[27] # 1-byte value, engine load as percent * 2.55 (0-255)
@@ -159,6 +163,9 @@ def main(screen, *args):
     current_timestamp = datetime.now().strftime("%d-%m-%y_%H-%M-%S")
     record_file = open(f'/home/pi/buell-logger/{current_timestamp}.log', 'wb')
 
+    # standard bin header for DDFI-1
+    record_file.write(b'BUEKA\x00\x00\x00\x01')
+
     while True:
         # get latest data to draw
         data = getRuntimeData(device)
@@ -170,8 +177,8 @@ def main(screen, *args):
 
         else:
             # draw it out
-            printEngineTemp(data, screen)
-            printEngineO2(data, screen)
+            printEngineTempAndO2(data, screen)
+            #printEngineO2(data, screen)
             printEngineFuel(data, screen)
             printBatteryVoltage(data, screen)
             printEngineTimingAdvance(data, screen)
