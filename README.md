@@ -15,8 +15,3 @@ The workflow is roughly as follows:
 6. Process the reply (collect it in a logfile, display it on the screen, etc)
 7. Continuously repeat the process from step 3 onward
 
-## To-dos
-These are things I'd like to add or improve upon.
-
-### Add checksum evaluation during the log writing process
-I've noticed that when I've used this to collect logs on my particular bike, sometimes the log stream is mostly errors. There can be a variety of reasons for this, but I plan on using the checksum bit contained in the runtime data reply packet to check that the reply is valid before writing it to the logfile or displaying the data on the screen. I think it would also be prudent to incorporate a backoff strategy in the event that our data contains a lot of errors back-to-back.
