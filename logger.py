@@ -21,9 +21,6 @@ runtime_data_header = [
 
 RTD_BYTES = bytearray(runtime_data_header)
 
-# globals
-RECORD_INCREMENT = 0
-
 
 # test with:
 # curses.wrapper(sample)
@@ -49,12 +46,17 @@ def getRuntimeData(serial_device):
 
 
 def recordData(raw_data, file_obj):
-    global RECORD_INCREMENT
-
-    RECORD_INCREMENT = RECORD_INCREMENT + 160  # approximation of what the log record field should contain
-
     file_obj.write(raw_data)
-    file_obj.write(RECORD_INCREMENT.to_bytes(4, "big"))
+
+    # this emulates the record separator in a Megasquirt-style binary log.
+    # usually its an incremental time-ish based record, but I haven't been
+    # able to identify what this needs to be exactly. leaving it blank
+    # works fine with MegaLogViewer and EcmSpy's log analyzer, it just
+    # skews the runtime in MegaLogViewer, which might be fine.
+    file_obj.write(int(0).to_bytes(4, "big"))  # b'\x00\x00\x00\x00'
+
+    # making sure to flush anything in the buffer so we don't lose anything
+    # when we abruptly turn the bike off
     file_obj.flush()
 
 
