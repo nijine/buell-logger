@@ -180,7 +180,6 @@ def main(screen, *args):
         else:
             # draw it out
             printEngineTempAndO2(data, screen)
-            #printEngineO2(data, screen)
             printEngineFuel(data, screen)
             printBatteryVoltage(data, screen)
             printEngineTimingAdvance(data, screen)
@@ -191,10 +190,6 @@ def main(screen, *args):
 
         # refresh the screen
         screen.refresh()
-
-        # add a delay here as needed, so we don't overwhelm the ECM if anything
-         # we already have a delay in getRuntimeData() itself, no real need to add to it
-        # sleep(0.25)
 
 
 # basically a main() wrapper to cleanly init and de-init curses
