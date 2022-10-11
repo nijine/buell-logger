@@ -180,6 +180,7 @@ def main(screen, *args):
     record_file.write(b'BUEKA\x00\x00\x00\x01')
 
     global ERRORS
+    global DELAY
 
     while True:
         # get latest data to draw
