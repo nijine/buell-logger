@@ -4,6 +4,7 @@ import curses
 from pylibftdi import Device
 from time import sleep
 from datetime import datetime
+from operator import xor
 
 
 # constants
@@ -20,6 +21,8 @@ runtime_data_header = [
 ]
 
 RTD_BYTES = bytearray(runtime_data_header)
+DELAY = 0.1
+ERRORS = 0
 
 
 # test with:
@@ -34,11 +37,19 @@ def sample(screen, *args):
         screen.refresh()
 
 
+def chksum(start, end, data, init=0):
+    checksum = 0
+
+    for i in range(start, end):
+        checksum = xor(checksum, data[i])
+
+    return checksum
+
+
 def getRuntimeData(serial_device):
     serial_device.write(RTD_BYTES)
 
-    # may want a more sophisticated way of doing this so we don't hang up the whole program
-    sleep(0.15)
+    sleep(DELAY)
 
     runtime_data = serial_device.read(99)
 
@@ -60,9 +71,9 @@ def recordData(raw_data, file_obj):
     file_obj.flush()
 
 
-def printError(screen):
+def printError(screen, error_str):
     screen.clear()
-    screen.addstr(0, 0, 'Comm error!')
+    screen.addstr(0, 6, error_str)
 
 
 def printEngineTempAndO2(raw_data, screen):
@@ -168,25 +179,51 @@ def main(screen, *args):
     # standard bin header for DDFI-1
     record_file.write(b'BUEKA\x00\x00\x00\x01')
 
+    global ERRORS
+
     while True:
         # get latest data to draw
         data = getRuntimeData(device)
 
         if len(data) < 98:
             # error if data isn't complete
-            printError(screen)
+            printError(screen, 'Comm error!')
             sleep(1)
 
         else:
-            # draw it out
-            printEngineTempAndO2(data, screen)
-            printEngineFuel(data, screen)
-            printBatteryVoltage(data, screen)
-            printEngineTimingAdvance(data, screen)
-            printEngineLoad(data, screen)
+            # check to make sure the data is valid
+            chk_calc = chksum(1, 98, data)
+            chk_rcrd = data[-1]
 
-            # record data to file
-            recordData(data, record_file)
+            if chk_calc == chk_rcrd:
+                # draw it out
+                printEngineTempAndO2(data, screen)
+                printEngineFuel(data, screen)
+                printBatteryVoltage(data, screen)
+                printEngineTimingAdvance(data, screen)
+                printEngineLoad(data, screen)
+
+                # record data to file
+                recordData(data, record_file)
+
+                # reset error counter
+                ERRORS = 0
+            else:
+                # count consecutive errors
+                if ERRORS < 3:
+                    ERRORS += 1
+                    printError(screen, f"ERRORS: {ERRORS}")
+
+                else:
+                    # back off the data collection interval
+                    DELAY += 0.05
+                    ERRORS = 0
+                    printError(screen, f"DELAY: {DELAY}")
+
+                    if DELAY > 0.5:
+                        printError(screen, f"HIGH ERRORS, PAUSED")
+                        sleep(30)
+                        DELAY = 0.2
 
         # refresh the screen
         screen.refresh()
