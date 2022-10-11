@@ -76,11 +76,10 @@ def printError(screen, error_str):
     screen.addstr(0, 6, error_str)
 
 
-def printEngineTempAndO2(raw_data, screen):
+def printEngineTempAndO2(raw_data, screen, location):
     # screen formatting
     padding = ' '
     width = 3
-    location = (0, 0)  # x, y
 
     # data
     engine_temp = (raw_data[31] << 8 | raw_data[30]) * 0.1 - 40  # engine temp in C
