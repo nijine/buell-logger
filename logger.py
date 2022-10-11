@@ -85,7 +85,7 @@ def printEngineTempAndO2(raw_data, screen):
     # data
     engine_temp = (raw_data[31] << 8 | raw_data[30]) * 0.1 - 40  # engine temp in C
     engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
-    formatted_output = f'T: {engine_temp :{padding}>{width}.0f} C O2: {engine_o2 :.2f} V '
+    formatted_output = f'T: {engine_temp :{padding}>{width}.0f} C O2: {engine_o2 :.2f}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -152,14 +152,30 @@ def printEngineTimingAdvance(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineLoad(raw_data, screen):
+def printEngineLoadAndRPM(raw_data, screen):
     padding = ' '
-    width = 3
+    width_load = 3
+    width_rpm = 5
     location = (0, 5)  # x, y
 
     # data
     engine_load = raw_data[27] # 1-byte value, engine load as percent * 2.55 (0-255)
-    formatted_output = f'Load: {engine_load :{padding}>{width}}'
+    engine_rpm = (raw_data[12] << 8 | raw_data[11])
+    formatted_output = f'Load: {engine_load :{padding}>{width_load}} RPM: {engine_rpm :{padding}>{width_rpm}}'
+
+    screen.addstr(location[1], location[0], formatted_output)
+
+
+def printEngineEgoAndRuntime(raw_data, screen):
+    padding = ' '
+    width_ego = 3
+    width_rtime = 4
+    location = (0, 6)  # x, y
+
+    # data
+    engine_ego = (raw_data[55] << 8 | raw_data[54]) * 0.1
+    engine_rtime = (raw_data[10] << 8 | raw_data[9])
+    formatted_output = f'EGO: {engine_ego :{padding}>{width_ego}.0f} Tme {engine_rtime :{padding}>{width_rtime}}'
 
     screen.addstr(location[1], location[0], formatted_output)
 
@@ -202,7 +218,8 @@ def main(screen, *args):
                 printEngineFuel(data, screen)
                 printBatteryVoltage(data, screen)
                 printEngineTimingAdvance(data, screen)
-                printEngineLoad(data, screen)
+                printEngineLoadAndRPM(data, screen)
+                printEngineEgoAndRuntime(data, screen)
 
                 # record data to file
                 recordData(data, record_file)
