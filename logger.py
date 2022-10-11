@@ -90,9 +90,8 @@ def printEngineTempAndO2(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineO2(raw_data, screen):
+def printEngineO2(raw_data, screen, location):
     # fixed 4-wide field, no need for padding
-    location = (0, 1)  # x, y
 
     # data
     engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
@@ -101,11 +100,10 @@ def printEngineO2(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineFuel(raw_data, screen):
+def printEngineFuel(raw_data, screen, location):
     # readout in ms
     padding = ' '
     width = 5
-    location = (0, 1)  # x, y
 
     # data
     engine_fuel_front = (raw_data[22] << 8 | raw_data[21]) * 0.00133  # Fuel Pulsewidth in ms
@@ -114,23 +112,10 @@ def printEngineFuel(raw_data, screen):
 
     screen.addstr(location[1], location[0], formatted_output)
 
-    # readout in fuel table value
+
+def printBatteryVoltage(raw_data, screen, location):
     padding = ' '
     width = 5
-    location = (0, 2)  # x, y
-
-    # data
-    engine_fuel_front = (raw_data[18] << 8 | raw_data[17]) * 0.026666  # fuel table value
-    engine_fuel_rear = (raw_data[20] << 8 | raw_data[19]) * 0.026666  # fuel table value
-    formatted_output = f'FTB: F {engine_fuel_front :{padding}>{width}.0f} R {engine_fuel_rear :{padding}>{width}.0f}'
-
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def printBatteryVoltage(raw_data, screen):
-    padding = ' '
-    width = 5
-    location = (0, 3)  # x, y
 
     # data
     engine_volts = (raw_data[29] << 8 | raw_data[28]) * 0.01  # battery voltage
@@ -139,10 +124,9 @@ def printBatteryVoltage(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineTimingAdvance(raw_data, screen):
+def printEngineTimingAdvance(raw_data, screen, location):
     padding = ' '
     width = 5
-    location = (0, 4)  # x, y
 
     # data
     engine_timing_front = (raw_data[14] << 8 | raw_data[13]) * 0.0025  # degrees of spark advance
@@ -152,11 +136,10 @@ def printEngineTimingAdvance(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineLoadAndRPM(raw_data, screen):
+def printEngineLoadAndRPM(raw_data, screen, location):
     padding = ' '
     width_load = 3
     width_rpm = 5
-    location = (0, 5)  # x, y
 
     # data
     engine_load = raw_data[27] # 1-byte value, engine load as percent * 2.55 (0-255)
@@ -166,11 +149,10 @@ def printEngineLoadAndRPM(raw_data, screen):
     screen.addstr(location[1], location[0], formatted_output)
 
 
-def printEngineEgoAndRuntime(raw_data, screen):
+def printEngineEgoAndRuntime(raw_data, screen, location):
     padding = ' '
     width_ego = 3
     width_rtime = 4
-    location = (0, 6)  # x, y
 
     # data
     engine_ego = (raw_data[55] << 8 | raw_data[54]) * 0.1
@@ -214,12 +196,12 @@ def main(screen, *args):
 
             if chk_calc == chk_rcrd:
                 # draw it out
-                printEngineTempAndO2(data, screen)
-                printEngineFuel(data, screen)
-                printBatteryVoltage(data, screen)
-                printEngineTimingAdvance(data, screen)
-                printEngineLoadAndRPM(data, screen)
-                printEngineEgoAndRuntime(data, screen)
+                printEngineTempAndO2(data, screen, (0, 0))
+                printEngineFuel(data, screen, (0, 1))
+                printBatteryVoltage(data, screen, (0, 2))
+                printEngineTimingAdvance(data, screen, (0, 3))
+                printEngineLoadAndRPM(data, screen, (0, 4))
+                printEngineEgoAndRuntime(data, screen, (0, 5))
 
                 # record data to file
                 recordData(data, record_file)
