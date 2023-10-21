@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from sys import argv
 from operator import xor
 
 
@@ -12,13 +13,17 @@ def chksum(start, end, data, init=0):
     return checksum
 
 
-def readRecords():
-    with open('16-05-22_23-30-31.log', 'rb') as f:
+def readRecords(record_filename):
+    with open(record_filename, 'rb') as f:
         # read = 0
         consecutive = 0
         last_err = 0
         errors = 0
         records = 0
+
+        header = f.read(9)
+        print(header)
+        print('\n')
 
         while True:
             raw_data = f.read(99)
@@ -64,4 +69,6 @@ def readRecords():
                 # last_err = f.tell()
 
 
-readRecords()
+record_fn = str(argv[1])
+
+readRecords(record_fn)
