@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 
-import curses
+import board
+import busio
+import adafruit_ssd1306
 from pylibftdi import Device
 from time import sleep
 from datetime import datetime
+from operator import xor
+from sys import argv, exit
+from digitalio import DigitalInOut, Direction, Pull
+from PIL import Image, ImageDraw, ImageFont
 
 
 # constants
@@ -19,28 +25,103 @@ runtime_data_header = [
     0xFD   # Checksum
 ]
 
-RTD_BYTES = bytearray(runtime_data_header)
+RTD_BYTES = bytes(bytearray(runtime_data_header))
+RECORD_LENGTH = 99
 
 
-# test with:
-# curses.wrapper(sample)
-def sample(screen, *args):
-    from random import randrange as rr
+def checksum(start, end, data, init=0):
+    checksum_record = 0
 
-    while True:
-        rand_x = rr(0, 52)
-        rand_y = rr(0, 20)
-        screen.addstr(rand_y, rand_x, chr(rr(35,100)))
-        screen.refresh()
+    for i in range(start, end):
+        checksum_record = xor(checksum_record, data[i])
+
+    return checksum_record
+
+
+def initLogFile(file_dir=None):
+    current_timestamp = datetime.now().strftime("%d-%m-%y_%H-%M-%S")
+    default_location = '/home/pi/buell-logger'
+
+    location = f'{default_location}/{current_timestamp}.log'
+
+    if file_dir is not None:
+        location = f'{file_dir}/{current_timestamp}.log'
+
+    log_file = open(location, 'wb')
+
+    # standard bin header for DDFI-1
+    log_file.write(b'BUEKA\x00\x00\x00\x01')
+
+    return log_file
+
+
+def initButtons():
+    # Input pins:
+    button_A = DigitalInOut(board.D5)
+    button_A.direction = Direction.INPUT
+    button_A.pull = Pull.UP
+    
+    button_B = DigitalInOut(board.D6)
+    button_B.direction = Direction.INPUT
+    button_B.pull = Pull.UP
+    
+    button_L = DigitalInOut(board.D27)
+    button_L.direction = Direction.INPUT
+    button_L.pull = Pull.UP
+    
+    button_R = DigitalInOut(board.D23)
+    button_R.direction = Direction.INPUT
+    button_R.pull = Pull.UP
+    
+    button_U = DigitalInOut(board.D17)
+    button_U.direction = Direction.INPUT
+    button_U.pull = Pull.UP
+    
+    button_D = DigitalInOut(board.D22)
+    button_D.direction = Direction.INPUT
+    button_D.pull = Pull.UP
+    
+    button_C = DigitalInOut(board.D4)
+    button_C.direction = Direction.INPUT
+    button_C.pull = Pull.UP
+
+
+def initDrawDevice():
+    # Create the I2C interface.
+    i2c = busio.I2C(board.SCL, board.SDA)
+    # Create the SSD1306 OLED class.
+    disp = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
+
+    # Clear display.
+    disp.fill(0)
+    disp.show()
+    
+    # Create blank image for drawing.
+    # Make sure to create image with mode '1' for 1-bit color.
+    width = disp.width
+    height = disp.height
+    image = Image.new("1", (width, height))
+    
+    # Get drawing object to draw on image.
+    draw = ImageDraw.Draw(image)
+    
+    # Draw a black filled box to clear the image.
+    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+    
+    # Load font for printing text
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+
+    # physical display, renderer, image buffer, and font object for text
+    return (disp, draw, image, font)
 
 
 def getRuntimeData(serial_device):
     serial_device.write(RTD_BYTES)
 
     # may want a more sophisticated way of doing this so we don't hang up the whole program
-    sleep(0.15)
+    sleep(0.1)
 
-    runtime_data = serial_device.read(99)
+    runtime_data = serial_device.read(RECORD_LENGTH)
 
     return runtime_data
 
@@ -60,154 +141,86 @@ def recordData(raw_data, file_obj):
     file_obj.flush()
 
 
-def printError(screen):
-    screen.clear()
-    screen.addstr(0, 0, 'Comm error!')
+def checkData(raw_data):
+    if len(raw_data) < RECORD_LENGTH:
+        return False
+
+    checksum_calculated = checksum(1, RECORD_LENGTH - 1, raw_data)
+    checksum_recorded = raw_data[-1]
+
+    return checksum_calculated == checksum_recorded
 
 
-def printEngineTempAndO2(raw_data, screen):
-    # screen formatting
-    padding = ' '
-    width = 3
-    location = (0, 0)  # x, y
+def drawBasicText(disp, draw, image, font, text="Hello!"):
+    # blank rectangle (useful for clearing)
+    draw.rectangle((0, 0, disp.width, disp.height), outline=0, fill=0)
 
-    # data
-    engine_temp = (raw_data[31] << 8 | raw_data[30]) * 0.1 - 40  # engine temp in C
-    engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
-    formatted_output = f'T: {engine_temp :{padding}>{width}.0f} C O2: {engine_o2 :.2f}'
+    # writing text (coords, text_value, font, fill_color)
+    draw.text((1, 1), text, font=font, fill=1)
 
-    screen.addstr(location[1], location[0], formatted_output)
+    # update display buffer with latest image content
+    disp.image(image)
 
-
-def printEngineO2(raw_data, screen):
-    # fixed 4-wide field, no need for padding
-    location = (0, 1)  # x, y
-
-    # data
-    engine_o2 = (raw_data[35] << 8 | raw_data[34]) * 0.004888  # O2 voltage
-    formatted_output = f'O2: {engine_o2 :.2f}    '
-
-    screen.addstr(location[1], location[0], formatted_output)
+    # paint buffer to display
+    disp.show()
 
 
-def printEngineFuel(raw_data, screen):
-    # readout in ms
-    padding = ' '
-    width = 5
-    location = (0, 1)  # x, y
+def main():
+    # init everything
 
-    # data
-    engine_fuel_front = (raw_data[22] << 8 | raw_data[21]) * 0.00133  # Fuel Pulsewidth in ms
-    engine_fuel_rear = (raw_data[24] << 8 | raw_data[23]) * 0.00133  # Fuel Pulsewidth in ms
-    formatted_output = f'FPW: F {engine_fuel_front :{padding}>{width}.2f} R {engine_fuel_rear :{padding}>{width}.2f}'
+    # log file
+    log_file_dir = None
 
-    screen.addstr(location[1], location[0], formatted_output)
+    if len(argv) > 1:
+        log_file_dir = str(argv[1])
 
-    # readout in fuel table value
-    padding = ' '
-    width = 5
-    location = (0, 2)  # x, y
+    log_file = initLogFile(log_file_dir)
 
-    # data
-    engine_fuel_front = (raw_data[18] << 8 | raw_data[17]) * 0.026666  # fuel table value
-    engine_fuel_rear = (raw_data[20] << 8 | raw_data[19]) * 0.026666  # fuel table value
-    formatted_output = f'FTB: F {engine_fuel_front :{padding}>{width}.0f} R {engine_fuel_rear :{padding}>{width}.0f}'
+    # buttons
+    initButtons()
 
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def printBatteryVoltage(raw_data, screen):
-    padding = ' '
-    width = 5
-    location = (0, 3)  # x, y
-
-    # data
-    engine_volts = (raw_data[29] << 8 | raw_data[28]) * 0.01  # battery voltage
-    formatted_output = f'Batt V: {engine_volts :{padding}>{width}.2f}'
-
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def printEngineTimingAdvance(raw_data, screen):
-    padding = ' '
-    width = 5
-    location = (0, 4)  # x, y
-
-    # data
-    engine_timing_front = (raw_data[14] << 8 | raw_data[13]) * 0.0025  # degrees of spark advance
-    engine_timing_rear = (raw_data[16] << 8 | raw_data[15]) * 0.0025  # degrees of spark advance
-    formatted_output = f'Adv: F {engine_timing_front :{padding}>{width}.2f} R {engine_timing_rear :{padding}>{width}.2f}'
-
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def printEngineLoadAndRPM(raw_data, screen):
-    padding = ' '
-    width_load = 3
-    width_rpm = 5
-    location = (0, 5)  # x, y
-
-    # data
-    engine_load = raw_data[27] # 1-byte value, engine load as percent * 2.55 (0-255)
-    engine_rpm = (raw_data[12] << 8 | raw_data[11])
-    formatted_output = f'Load: {engine_load :{padding}>{width_load}} RPM: {engine_rpm :{padding}>{width_rpm}}'
-
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def printEngineEgoAndRuntime(raw_data, screen):
-    padding = ' '
-    width_ego = 3
-    width_rtime = 4
-    location = (0, 6)  # x, y
-
-    # data
-    engine_ego = (raw_data[55] << 8 | raw_data[54]) * 0.1
-    engine_rtime = (raw_data[10] << 8 | raw_data[9])
-    formatted_output = f'EGO: {engine_ego :{padding}>{width_ego}.0f} Tme {engine_rtime :{padding}>{width_rtime}}'
-
-    screen.addstr(location[1], location[0], formatted_output)
-
-
-def main(screen, *args):
-    # initializations (one time)
+    # drawing resources
+    draw_res = initDrawDevice()
 
     # serial device
-    device = Device('AR0K7VGN')
-    device.baudrate = 9600
-    device.open()
+    try:
+        serial = Device()
+        serial.baudrate = 9600
+        serial.open()
+    except:
+        drawBasicText(*draw_res, "Serial not found")
+        exit(1)
 
-    # recording file
-    current_timestamp = datetime.now().strftime("%d-%m-%y_%H-%M-%S")
-    record_file = open(f'/home/pi/buell-logger/{current_timestamp}.log', 'wb')
+    # error counters
+    errors = 0
+    recent = 0
 
-    # standard bin header for DDFI-1
-    record_file.write(b'BUEKA\x00\x00\x00\x01')
-
+    # loop
     while True:
-        # get latest data to draw
-        data = getRuntimeData(device)
+        # get latest data
+        data = getRuntimeData(serial)
 
-        if len(data) < 98:
-            # error if data isn't complete
-            printError(screen)
-            sleep(1)
+        # check for data integrity
+        record_is_good = checkData(data)
 
-        else:
-            # draw it out
-            printEngineTempAndO2(data, screen)
-            printEngineFuel(data, screen)
-            printBatteryVoltage(data, screen)
-            printEngineTimingAdvance(data, screen)
-            printEngineLoadAndRPM(data, screen)
-            printEngineEgoAndRuntime(data, screen)
-
+        if record_is_good:
             # record data to file
-            recordData(data, record_file)
+            recordData(data, log_file)
 
-        # refresh the screen
-        screen.refresh()
+            # draw it out
+            drawBasicText(*draw_res, f"Comm OK!\nBytes: {log_file.tell()}\nErrors: {errors}")
+
+            # reset recent error counter
+            recent = 0
+        else:
+            # increment error counters
+            errors += 1
+            recent += 1
+
+            # pause after X concurrent errors
+            if recent > 5:
+                drawBasicText(*draw_res, "Comm error!")
+                sleep(10)
 
 
-# basically a main() wrapper to cleanly init and de-init curses
-curses.wrapper(main)
+main()
